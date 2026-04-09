@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <script>
+        if(localStorage.getItem('userRol') !== 'admin') {
+            window.location.href = 'login.html';
+        }
+    </script>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventario Global - SISCONTED</title>
+    <script src="api.js"></script>
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-light: #818cf8;
+            --primary-glow: rgba(99, 102, 241, 0.2);
+            --secondary: #0ea5e9;
+            --success: #10b981;
+            --danger: #ef4444;
+            --bg: #0a0b14;
+            --sidebar-bg: #111827;
+            --card-bg: rgba(255, 255, 255, 0.03);
+            --border: rgba(255, 255, 255, 0.08);
+            --text: #f3f4f6;
+            --text-muted: #94a3b8;
+        }
+
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Orbitron:wght@500;700&display=swap');
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background: var(--bg);
+            background-image: 
+                radial-gradient(circle at 0% 0%, rgba(99, 102, 241, 0.08) 0%, transparent 40%),
+                radial-gradient(circle at 100% 100%, rgba(14, 165, 233, 0.05) 0%, transparent 40%);
+            color: var(--text);
+            padding: 40px 60px 180px 60px;
+            margin: 0;
+            min-height: 100vh;
+            overflow-y: auto;
+        }
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 48px;
+            background: rgba(17, 24, 39, 0.7);
+            backdrop-filter: blur(20px);
+            padding: 24px 40px;
+            border-radius: 24px;
+            border: 1px solid var(--border);
+            box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+        }
+
+        .header h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.5rem;
+            color: white;
+            letter-spacing: 2px;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .header h1::before {
+            content: '';
+            width: 8px;
+            height: 32px;
+            background: var(--primary);
+            border-radius: 4px;
+        }
+        
+        .nav-buttons { display: flex; gap: 12px; }
+        
+        .btn {
+            padding: 12px 20px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: 600;
+            text-decoration: none;
+            font-size: 0.85rem;
+            transition: 0.2s;
+            border: 1px solid var(--border);
+            display: flex; 
+            align-items: center; 
+            gap: 8px;
+        }
+        
+        .btn-back { background: rgba(255, 255, 255, 0.05); color: var(--text-muted); }
+        .btn-back:hover { 
+            background: rgba(255, 255, 255, 0.1); 
+            color: white;
+            transform: translateY(-2px);
+        }
+        .btn-back:active { transform: scale(0.95); }
+        
+        .btn-mov { background: var(--primary); color: white; border: none; }
+        .btn-mov:hover { 
+            background: var(--primary-light); 
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px var(--primary-glow);
+        }
+        .btn-mov:active { transform: scale(0.95); }
+
+        .btn-excel { background: var(--success); color: white; border: none; }
+        .btn-excel:hover { 
+            opacity: 0.9; 
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(16, 185, 129, 0.3);
+        }
+        .btn-excel:active { transform: scale(0.95); }
+
+        .search-container { position: relative; margin-bottom: 40px; }
+        .search-box {
+            width: 100%;
+            padding: 18px 24px 18px 56px;
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            color: white;
+            outline: none;
+            font-size: 1rem;
+            box-sizing: border-box;
+            transition: 0.3s;
+        }
+        .search-box:focus { border-color: var(--primary); box-shadow: 0 0 0 4px var(--primary-glow); }
+        .search-container::before { 
+            content: '🔍'; 
+            position: absolute; 
+            left: 20px; 
+            top: 50%; 
+            transform: translateY(-50%); 
+            font-size: 1.2rem; 
+            opacity: 0.5;
+        }
+
+        .inventory-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            background: var(--card-bg);
+            border-radius: 20px;
+            overflow: hidden;
+            margin-bottom: 120px;
+            border: 1px solid var(--border);
+        }
+        .inventory-table th {
+            background: rgba(255, 255, 255, 0.02);
+            color: var(--text-muted);
+            padding: 10px 12px;
+            text-align: left;
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            font-weight: 700;
+            border-bottom: 1px solid var(--border);
+        }
+        .inventory-table td { 
+            padding: 10px 12px; 
+            border-bottom: 1px solid var(--border); 
+            font-size: 0.75rem;
+            color: var(--text);
+        }
+        .inventory-table tr:last-child td { border-bottom: none; }
+        .inventory-table tr:hover { background: rgba(255, 255, 255, 0.02); }
+
+        .stock-badge {
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 0.8rem;
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+        }
+        .low-stock { 
+            background: rgba(239, 68, 68, 0.1); 
+            color: var(--danger); 
+        }
+        
+        .summary-bar { 
+            display: grid; 
+            grid-template-columns: repeat(7, 1fr); 
+            gap: 15px; 
+            background: var(--sidebar-bg); 
+            padding: 15px 25px; 
+            border-radius: 18px; 
+            border: 1px solid var(--border);
+            backdrop-filter: blur(20px);
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            box-shadow: 0 -10px 30px rgba(0,0,0,0.4);
+            z-index: 1000;
+        }
+        
+        .summary-item { text-align: left; border-right: 1px solid var(--border); }
+        .summary-item:last-child { border-right: none; }
+        
+        .summary-item label {
+            display: block;
+            font-size: 0.6rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            margin-bottom: 4px;
+            letter-spacing: 1px;
+            font-weight: 700;
+        }
+        .summary-item span { font-size: 1.25rem; font-weight: 700; font-family: 'Orbitron', sans-serif; }
+        
+        .val-compra { color: var(--secondary); text-shadow: 0 0 10px rgba(14, 165, 233, 0.3); }
+        .val-venta { color: var(--primary-light); text-shadow: 0 0 10px var(--primary-glow); }
+        .val-utilidad { color: var(--success); text-shadow: 0 0 10px rgba(16, 185, 129, 0.3); }
+
+        .btn:active { transform: scale(0.96); }
+        .inventory-table tr { transition: 0.2s; }
+        .inventory-table tr:hover td { background: rgba(255, 255, 255, 0.04); transform: scale(1.002); }
+
+        .empty-msg { text-align: center; padding: 60px; color: var(--text-muted); font-size: 1rem; }
+
+        /* SCROLLBAR */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+        @media (max-width: 768px) {
+            body { flex-direction: column; overflow-y: auto; height: auto; }
+            .sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--border); padding: 20px; box-sizing: border-box; }
+            .main { padding: 20px; overflow-y: visible; }
+            .controls > div { flex-direction: column; align-items: stretch; }
+            .controls div > div { width: 100%; margin-bottom: 10px; }
+            .table-container { overflow-x: auto; }
+            .modal-content { width: 95%; padding: 20px; }
+            .form-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div>
+            <h1 style="margin: 0;">📦 Inventario Global</h1>
+            <p style="margin: 5px 0 0 0; color: #94a3b8; font-size: 0.9rem;">Consulta de existencias y valoración de activos</p>
+        </div>
+        <div class="nav-buttons">
+            <button onclick="exportarExcel()" class="btn btn-excel">📊 EXPORTAR GENERAL</button>
+            <button onclick="exportarExcelPorCategoria()" class="btn btn-excel" style="background: #8b5cf6;">📂 EXPORTAR POR CATEGORÍA</button>
+            <a href="facturas_compras.html" class="btn btn-mov" style="background: var(--secondary);">🧾 RECEPCION - FACTURAS DE COMPRAS</a>
+            <a href="ingresos.html" class="btn btn-mov">🔄 INGRESOS Y SALIDAS</a>
+            <a href="index.html" class="btn btn-back">⬅ REGRESAR</a>
+        </div>
+    </div>
+
+    <div class="search-container">
+        <i class="search-icon">🔍</i>
+        <input type="text" id="filtro" class="search-box" placeholder="Escanee código de barras o busque producto..." onkeyup="filtrarTabla()" autofocus>
+    </div>
+
+    <table class="inventory-table" id="tabla-datos">
+        <thead>
+            <tr>
+                <th>REF / CÓDIGO</th>
+                <th>PRODUCTO</th>
+                <th style="text-align: center;">CANT.</th>
+                <th>U.M.</th>
+                <th style="text-align: center;">IVA (%)</th>
+                <th style="color: #60a5fa; text-align: right;">IVA COMPRA (U)</th>
+                <th style="color: var(--warning); text-align: right;">IVA VENTA (U)</th>
+                <th style="color: #f87171; font-weight: bold; text-align: right;">IVA PAGAR (U)</th>
+                <th style="color: var(--secondary); text-align: right;">COSTO UND</th>
+                <th style="color: var(--accent); text-align: right;">VENTA (PVP) UND</th>
+                <th style="color: #94a3b8; text-align: right; font-size: 0.75rem;">BASE COSTO (U)</th>
+                <th style="color: #94a3b8; text-align: right; font-size: 0.75rem;">BASE VENTA (U)</th>
+                <th style="color: #60a5fa; text-align: right;">TOTAL BASE COSTO</th>
+                <th style="color: var(--warning); text-align: right;">TOTAL BASE VENTA</th>
+                <th style="font-weight: bold; color: #ef4444; text-align: right;">IVA POR PAGAR</th>
+                <th style="font-weight: bold; color: var(--secondary); text-align: right;">TOTAL COSTO</th>
+                <th style="font-weight: bold; color: var(--accent); text-align: right;">TOTAL VENTA</th>
+                <th style="font-weight: bold; color: #10b981; text-align: right;">UTILIDAD TOTAL</th>
+            </tr>
+        </thead>
+        <tbody id="lista-inventario"></tbody>
+    </table>
+
+    <div class="summary-bar">
+        <div class="summary-item">
+            <label>Inversión Total (PAGADO)</label>
+            <span id="total-costo-global" class="val-compra">$ 0</span>
+        </div>
+        <div class="summary-item">
+            <label>Inversión Base (NETO EXCENTO)</label>
+            <span id="total-base-costo-global" style="color: #94a3b8;">$ 0</span>
+        </div>
+        <div class="summary-item">
+            <label>Recup. IVA Pagado (CRÉDITO)</label>
+            <span id="total-iva-costo-global" style="color: #60a5fa; text-shadow: 0 0 10px rgba(96, 165, 250, 0.3);">$ 0</span>
+        </div>
+        <div class="summary-item">
+            <label>Diferencia IVA Final (POR PAGAR)</label>
+            <span id="total-iva-pagar-global" style="color: #f87171; text-shadow: 0 0 10px rgba(248, 113, 113, 0.3);">$ 0</span>
+        </div>
+        <div class="summary-item">
+            <label>Utilidad Real Proyectada</label>
+            <span id="total-utilidad-global" class="val-utilidad">$ 0</span>
+        </div>
+        <div class="summary-item">
+            <label>Valor Total Venta (PVP)</label>
+            <span id="total-venta-global" class="val-venta">$ 0</span>
+        </div>
+        <div class="summary-item" style="border-right: none;">
+            <label>IVA Total a Recaudar (DÉBITO)</label>
+            <span id="total-iva-global" style="color: var(--warning); text-shadow: 0 0 10px rgba(245, 158, 11, 0.3);">$ 0</span>
+        <script>
+        let dataActual = [];
+
+        async function cargarInventario() {
+            const tbody = document.getElementById('lista-inventario');
+            try {
+                const config = await API.getConfig();
+                if(config && config.empresa && config.empresa.tema) {
+                    API.applyTheme(config.empresa.tema);
+                }
+                const productos = await API.getProductos();
+                if (!productos || productos.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="18" class="empty-msg">El inventario está vacío.</td></tr>';
+                    return;
+                }
+                productos.sort((a, b) => a.nombre.localeCompare(b.nombre));
+                dataActual = productos;
+                renderTable(productos);
+            } catch (err) {
+                console.error(err);
+                tbody.innerHTML = '<tr><td colspan="18" class="empty-msg">Error al cargar productos del servidor.</td></tr>';
+            }
+        }
+
+        function renderTable(data) {
+            const tbody = document.getElementById('lista-inventario');
+            tbody.innerHTML = "";
+            let globalBaseC = 0;
+            let globalIvaC = 0;
+            let globalTotalC = 0;
+            let globalIvaP = 0;
+            let globalVenta = 0;
+            let globalIvaV = 0;
+
+            data.forEach(p => {
+                const stock = parseInt(p.existencia) || 0;
+                const costoU = parseFloat(p.precioCompra) || 0;
+                const ventaU = parseFloat(p.precio) || 0;
+                const porc = parseFloat(p.ivaPorcentaje) || 0;
+
+                // IVA INCLUIDO (Formula Legal)
+                const baseCostoU = costoU / (1 + (porc / 100));
+                const ivaCostoU = costoU - baseCostoU;
+                const baseVentaU = ventaU / (1 + (porc / 100));
+                const ivaVentaU = ventaU - baseVentaU;
+                const ivaPagarU = ivaVentaU - ivaCostoU;
+
+                const tBaseC = stock * baseCostoU;
+                const tIvaC = stock * ivaCostoU;
+                const tTotalC = stock * costoU;
+                const tBaseV = stock * baseVentaU;
+                const tIvaV = stock * ivaVentaU;
+                const tTotalV = stock * ventaU;
+                const tIvaP = stock * ivaPagarU;
+                const utilT = stock * (ventaU - costoU);
+
+                globalBaseC += tBaseC;
+                globalIvaC += tIvaC;
+                globalTotalC += tTotalC;
+                globalIvaP += tIvaP;
+                globalVenta += tTotalV;
+                globalIvaV += tIvaV;
+
+                const alertaClase = stock <= 5 ? 'low-stock' : '';
+                tbody.innerHTML += `
+                    <tr>
+                        <td style="font-family: monospace; font-weight: bold; color: var(--accent);">${p.codigo}</td>
+                        <td style="font-weight: 500;">${API.formatProductName(p.nombre, p.unidad).toUpperCase()}</td>
+                        <td style="text-align: center;"><span class="stock-badge ${alertaClase}">${stock}</span></td>
+                        <td style="color: #94a3b8; font-size: 0.8rem;">${p.unidad || 'UND'}</td>
+                        <td style="text-align: center; font-weight: bold;">${porc}%</td>
+                        <td style="color: #60a5fa; text-align: right;">$ ${API.formatNumber(Math.round(ivaCostoU))}</td>
+                        <td style="color: var(--warning); text-align: right;">$ ${API.formatNumber(Math.round(ivaVentaU))}</td>
+                        <td style="color: #f87171; font-weight:bold; text-align: right;">$ ${API.formatNumber(Math.round(ivaPagarU))}</td>
+                        <td style="text-align: right;">$ ${API.formatNumber(Math.round(costoU))}</td>
+                        <td style="text-align: right;">$ ${API.formatNumber(Math.round(ventaU))}</td>
+                        <td style="text-align: right; color: #94a3b8; font-size: 0.8rem;">$ ${API.formatNumber(Math.round(baseCostoU))}</td>
+                        <td style="text-align: right; color: #94a3b8; font-size: 0.8rem;">$ ${API.formatNumber(Math.round(baseVentaU))}</td>
+                        <td style="color: #60a5fa; text-align: right;">$ ${API.formatNumber(Math.round(tBaseC))}</td>
+                        <td style="color: var(--warning); text-align: right;">$ ${API.formatNumber(Math.round(tBaseV))}</td>
+                        <td style="font-weight: bold; color: #ef4444; text-align: right;">$ ${API.formatNumber(Math.round(tIvaP))}</td>
+                        <td style="font-weight: bold; color: var(--secondary); text-align: right;">$ ${API.formatNumber(Math.round(tTotalC))}</td>
+                        <td style="font-weight: bold; color: var(--accent); text-align: right;">$ ${API.formatNumber(Math.round(tTotalV))}</td>
+                        <td style="font-weight: bold; color: #10b981; text-align: right;">$ ${API.formatNumber(Math.round(utilT))}</td>
+                    </tr>
+                `;
+            });
+
+            document.getElementById('total-costo-global').innerText = `$ ${API.formatNumber(Math.round(globalTotalC))}`;
+            document.getElementById('total-base-costo-global').innerText = `$ ${API.formatNumber(Math.round(globalBaseC))}`;
+            document.getElementById('total-iva-costo-global').innerText = `$ ${API.formatNumber(Math.round(globalIvaC))}`;
+            document.getElementById('total-iva-pagar-global').innerText = `$ ${API.formatNumber(Math.round(globalIvaP))}`;
+            document.getElementById('total-utilidad-global').innerText = `$ ${API.formatNumber(Math.round(globalVenta - globalTotalC))}`;
+            document.getElementById('total-venta-global').innerText = `$ ${API.formatNumber(Math.round(globalVenta))}`;
+            document.getElementById('total-iva-global').innerText = `$ ${API.formatNumber(Math.round(globalIvaV))}`;
+        }
+
+        async function obtenerHeaderEmpresa(cols) {
+            let emp = { nombre: 'MI EMPRESA', nit: '', direccion: '', telefono: '', logoBase64: '' };
+            try {
+                const config = await API.getConfig();
+                if (config && config.empresa) emp = { ...emp, ...config.empresa };
+            } catch(e) { console.error(e); }
+            
+            let logoHtml = '';
+            let textCols = cols;
+            if (emp.logoBase64) {
+                // Usamos cid:logo para compatibilidad con Excel MHT
+                logoHtml = `<th rowspan="3" width="85" style="text-align:center; vertical-align:middle; background:white; border:1px solid #ccc; height:60px;"><img src="cid:logo" width="60" height="60" style="display:block; margin:auto;"></th>`;
+                textCols = cols - 1;
+            }
+
+            let headerHtml = `
+                <tr height="20">${logoHtml}<th colspan="${textCols}" style="font-size: 15px; font-weight: bold; color: #0f172a; text-align: center; height: 20px;">${emp.nombre.toUpperCase()}</th></tr>
+                <tr height="20"><th colspan="${textCols}" style="font-size: 14px; color: #334155; text-align: center; height: 20px;">NIT: ${emp.nit} | TEL: ${emp.telefono}</th></tr>
+                <tr height="20"><th colspan="${textCols}" style="font-size: 14px; color: #334155; text-align: center; border-bottom: 2px solid #94a3b8; height: 20px;">${emp.direccion}</th></tr>
+            `;
+            return { headerHtml, logoBase64: emp.logoBase64 };
+        }
+
+        async function exportarExcel() {
+            const fecha = new Date().toLocaleDateString();
+            try {
+                const { headerHtml, logoBase64 } = await obtenerHeaderEmpresa(19);
+                let excelHtml = `<table border="1">
+                    ${headerHtml}
+                    <tr><th colspan="19" style="background-color: #1e293b; color: #ffffff; font-size: 20px; height: 50px;">AUDITORÍA FISCAL DE INVENTARIO - SISCONTED</th></tr>
+                    <tr><th colspan="19" style="background-color: #f8fafc; color: #64748b;">Generado el ${fecha} | Desglose Legal de IVA e Inversión</th></tr>
+                    <tr style="font-weight: bold; text-align: center;">
+                        <th style="background-color: #f1f5f9;">REF</th>
+                        <th style="background-color: #f1f5f9;">PRODUCTO</th>
+                        <th style="background-color: #f1f5f9;">STOCK</th>
+                        <th style="background-color: #f1f5f9;">U.M.</th>
+                        <th style="background-color: #f1f5f9;">IVA%</th>
+                        <th style="background-color: #dbeafe; color: #1e40af;">BASE COSTO(U)</th>
+                        <th style="background-color: #dbeafe; color: #1e40af;">IVA COSTO(U)</th>
+                        <th style="background-color: #dbeafe; font-weight: bold;">TOTAL COSTO(U)</th>
+                        <th style="background-color: #fef3c7; color: #b45309;">BASE VENTA(U)</th>
+                        <th style="background-color: #fef3c7; color: #b45309;">IVA VENTA(U)</th>
+                        <th style="background-color: #fef3c7; font-weight: bold;">PVP(U)</th>
+                        <th style="background-color: #f1f5f9;">TOTAL BASE COSTO</th>
+                        <th style="background-color: #f1f5f9;">TOTAL IVA COSTO</th>
+                        <th style="background-color: #e2e8f0; font-weight: bold;">INVERSIÓN TOTAL(PAGADO)</th>
+                        <th style="background-color: #f1f5f9;">TOTAL BASE VENTA</th>
+                        <th style="background-color: #f1f5f9;">TOTAL IVA VENTA</th>
+                        <th style="background-color: #e2e8f0; font-weight: bold;">TOTAL VENTA(PVP)</th>
+                        <th style="background-color: #fee2e2; color: #b91c1c;">IVA NETO POR PAGAR</th>
+                        <th style="background-color: #f0fdf4; color: #16a34a;">UTILIDAD</th>
+                    </tr>`;
+
+                let sBaseC = 0, sIvaC = 0, sTotalC = 0, sBaseV = 0, sIvaV = 0, sTotalV = 0, sIvaD = 0;
+                dataActual.forEach(p => {
+                    const stock = parseInt(p.existencia) || 0;
+                    const cU = parseFloat(p.precioCompra) || 0;
+                    const vU = parseFloat(p.precio) || 0;
+                    const porc = parseFloat(p.ivaPorcentaje) || 0;
+
+                    const iCU = cU - (cU / (1 + (porc / 100)));
+                    const iVU = vU - (vU / (1 + (porc / 100)));
+                    const bCU = cU - iCU;
+                    const bVU = vU - iVU;
+                    const iDU = iVU - iCU;
+
+                    const tBC = stock * bCU;
+                    const tIC = stock * iCU;
+                    const tTC = stock * cU;
+                    const tBV = stock * bVU;
+                    const tIV = stock * iVU;
+                    const tTV = stock * vU;
+                    const tID = stock * iDU;
+                    const util = stock * (vU - cU);
+
+                    sBaseC += tBC; sIvaC += tIC; sTotalC += tTC;
+                    sBaseV += tBV; sIvaV += tIV; sTotalV += tTV;
+                    sIvaD += tID;
+
+                    excelHtml += `
+                        <tr>
+                            <td align="center">'${p.codigo}</td>
+                            <td>${API.formatProductName(p.nombre, p.unidad).toUpperCase()}</td>
+                            <td align="center">${stock}</td>
+                            <td align="center">${p.unidad || 'UND'}</td>
+                            <td align="center">${porc}%</td>
+                            <td align="right">$ ${Math.round(bCU).toLocaleString()}</td>
+                            <td align="right">$ ${Math.round(iCU).toLocaleString()}</td>
+                            <td align="right" style="font-weight:bold;">$ ${Math.round(cU).toLocaleString()}</td>
+                            <td align="right">$ ${Math.round(bVU).toLocaleString()}</td>
+                            <td align="right">$ ${Math.round(iVU).toLocaleString()}</td>
+                            <td align="right" style="font-weight:bold;">$ ${Math.round(vU).toLocaleString()}</td>
+                            <td align="right">$ ${Math.round(tBC).toLocaleString()}</td>
+                            <td align="right">$ ${Math.round(tIC).toLocaleString()}</td>
+                            <td align="right" style="background-color:#f1f5f9; font-weight:bold;">$ ${Math.round(tTC).toLocaleString()}</td>
+                            <td align="right">$ ${Math.round(tBV).toLocaleString()}</td>
+                            <td align="right">$ ${Math.round(tIV).toLocaleString()}</td>
+                            <td align="right" style="background-color:#f1f5f9; font-weight:bold;">$ ${Math.round(tTV).toLocaleString()}</td>
+                            <td align="right" style="background-color:#fee2e2; color:#b91c1c;">$ ${Math.round(tID).toLocaleString()}</td>
+                            <td align="right" style="background-color:#f0fdf4; color:#16a34a; font-weight:bold;">$ ${Math.round(util).toLocaleString()}</td>
+                        </tr>`;
+                });
+
+                excelHtml += `
+                    <tr></tr>
+                    <tr style="font-weight: bold;">
+                        <td colspan="18" align="right" style="background-color: #f8fafc;">1. TOTAL INVERSIÓN COSTO (PAGADO A PROVEEDORES):</td>
+                        <td align="right" style="background-color: #f1f5f9;">$ ${Math.round(sTotalC).toLocaleString()}</td>
+                    </tr>
+                    <tr style="font-weight: bold;">
+                        <td colspan="18" align="right" style="background-color: #f8fafc; color: #1e40af;">2. IVA TOTAL PAGADO (CRÉDITO FISCAL A TU FAVOR):</td>
+                        <td align="right" style="background-color: #dbeafe; color: #1e40af;">$ ${Math.round(sIvaC).toLocaleString()}</td>
+                    </tr>
+                    <tr style="font-weight: bold;">
+                        <td colspan="18" align="right" style="background-color: #fefce8; color: #854d0e;">3. IVA TOTAL A RECAUDAR (DÉBITO FISCAL POR VENTAS):</td>
+                        <td align="right" style="background-color: #fef9c3; color: #854d0e;">$ ${Math.round(sIvaV).toLocaleString()}</td>
+                    </tr>
+                    <tr style="font-weight: bold; font-size: 14px;">
+                        <td colspan="18" align="right" style="background-color: #fef2f2; color: #b91c1c;">4. SALDO NETO DE IVA POR PAGAR A DIAN (DÉBITO - CRÉDITO):</td>
+                        <td align="right" style="background-color: #fee2e2; color: #b91c1c;">$ ${Math.round(sIvaD).toLocaleString()}</td>
+                    </tr>
+                    <tr style="font-weight: bold; font-size: 14px;">
+                        <td colspan="18" align="right" style="background-color: #0f172a; color: white;">5. VALOR TOTAL DE TU MERCANCÍA A PRECIO VENTA (PVP):</td>
+                        <td align="right" style="background-color: #0f172a; color: #00f2ff;">$ ${Math.round(sTotalV).toLocaleString()}</td>
+                    </tr>
+                    <tr style="font-weight: bold; font-size: 15px;">
+                        <td colspan="18" align="right" style="background-color: #064e3b; color: white;">6. UTILIDAD BRUTA PROYECTADA (VENTA - COSTO):</td>
+                        <td align="right" style="background-color: #065f46; color: #10b981;">$ ${Math.round(sTotalV - sTotalC).toLocaleString()}</td>
+                    </tr>
+                </table>`;
+                API.descargarExcelMHT(excelHtml, `Inventario_Fiscal_Full_${fecha.replace(/\//g, '-')}`, logoBase64);
+            } catch (err) { alert("Error al generar el reporte."); }
+        }
+
+        async function exportarExcelPorCategoria() {
+            const fecha = new Date().toLocaleDateString();
+            try {
+                const { headerHtml, logoBase64 } = await obtenerHeaderEmpresa(19);
+                
+                // Agrupar productos por categoría
+                const grupos = dataActual.reduce((acc, p) => {
+                    const cat = (p.categoria || "GENERAL").toUpperCase();
+                    if (!acc[cat]) acc[cat] = [];
+                    acc[cat].push(p);
+                    return acc;
+                }, {});
+
+                let excelHtml = `<table border="1">
+                    ${headerHtml}
+                    <tr><th colspan="19" style="background-color: #8b5cf6; color: #ffffff; font-size: 20px; height: 50px;">INVENTARIO ANALÍTICO POR CATEGORÍAS - SISCONTED</th></tr>
+                    <tr><th colspan="19" style="background-color: #f8fafc; color: #64748b;">Generado el ${fecha} | Desglose por Grupos y Subtotales Financieros</th></tr>
+                    <tr style="font-weight: bold; text-align: center;">
+                        <th style="background-color: #f1f5f9;">REF</th>
+                        <th style="background-color: #f1f5f9;">PRODUCTO</th>
+                        <th style="background-color: #f1f5f9;">STOCK</th>
+                        <th style="background-color: #f1f5f9;">U.M.</th>
+                        <th style="background-color: #f1f5f9;">IVA%</th>
+                        <th style="background-color: #dbeafe; color: #1e40af;">BASE COSTO(U)</th>
+                        <th style="background-color: #dbeafe; color: #1e40af;">IVA COSTO(U)</th>
+                        <th style="background-color: #dbeafe; font-weight: bold;">TOTAL COSTO(U)</th>
+                        <th style="background-color: #fef3c7; color: #b45309;">BASE VENTA(U)</th>
+                        <th style="background-color: #fef3c7; color: #b45309;">IVA VENTA(U)</th>
+                        <th style="background-color: #fef3c7; font-weight: bold;">PVP(U)</th>
+                        <th style="background-color: #f1f5f9;">TOTAL BASE COSTO</th>
+                        <th style="background-color: #f1f5f9;">TOTAL IVA COSTO</th>
+                        <th style="background-color: #e2e8f0; font-weight: bold;">INVERSIÓN TOTAL</th>
+                        <th style="background-color: #f1f5f9;">TOTAL BASE VENTA</th>
+                        <th style="background-color: #f1f5f9;">TOTAL IVA VENTA</th>
+                        <th style="background-color: #e2e8f0; font-weight: bold;">TOTAL VENTA(PVP)</th>
+                        <th style="background-color: #fee2e2; color: #b91c1c;">IVA NETO</th>
+                        <th style="background-color: #f0fdf4; color: #16a34a;">UTILIDAD</th>
+                    </tr>`;
+
+                let gBaseC = 0, gIvaC = 0, gTotalC = 0, gBaseV = 0, gIvaV = 0, gTotalV = 0, gIvaD = 0;
+
+                Object.keys(grupos).sort().forEach(cat => {
+                    // Encabezado de Categoría
+                    excelHtml += `<tr><td colspan="19" style="background-color: #1e293b; color: white; font-weight: bold; height:30px; font-size:14px; padding-left:10px;">📂 CATEGORÍA: ${cat}</td></tr>`;
+
+                    const items = grupos[cat].sort((a,b) => a.nombre.localeCompare(b.nombre));
+                    let subInv = 0, subUtil = 0;
+
+                    items.forEach(p => {
+                        const stock = parseInt(p.existencia) || 0;
+                        const cU = parseFloat(p.precioCompra) || 0;
+                        const vU = parseFloat(p.precio) || 0;
+                        const porc = parseFloat(p.ivaPorcentaje) || 0;
+
+                        const iCU = cU - (cU / (1 + (porc / 100)));
+                        const iVU = vU - (vU / (1 + (porc / 100)));
+                        const bCU = cU - iCU;
+                        const bVU = vU - iVU;
+                        const iDU = iVU - iCU;
+
+                        const tBC = stock * bCU;
+                        const tIC = stock * iCU;
+                        const tTC = stock * cU;
+                        const tBV = stock * bVU;
+                        const tIV = stock * iVU;
+                        const tTV = stock * vU;
+                        const tID = stock * iDU;
+                        const util = stock * (vU - cU);
+
+                        gBaseC += tBC; gIvaC += tIC; gTotalC += tTC;
+                        gBaseV += tBV; gIvaV += tIV; gTotalV += tTV;
+                        gIvaD += tID;
+                        
+                        subInv += tTC;
+                        subUtil += util;
+
+                        excelHtml += `
+                            <tr>
+                                <td align="center">'${p.codigo}</td>
+                                <td>${API.formatProductName(p.nombre, p.unidad).toUpperCase()}</td>
+                                <td align="center">${stock}</td>
+                                <td align="center">${p.unidad || 'UND'}</td>
+                                <td align="center">${porc}%</td>
+                                <td align="right">$ ${Math.round(bCU).toLocaleString()}</td>
+                                <td align="right">$ ${Math.round(iCU).toLocaleString()}</td>
+                                <td align="right">$ ${Math.round(cU).toLocaleString()}</td>
+                                <td align="right">$ ${Math.round(bVU).toLocaleString()}</td>
+                                <td align="right">$ ${Math.round(iVU).toLocaleString()}</td>
+                                <td align="right">$ ${Math.round(vU).toLocaleString()}</td>
+                                <td align="right">$ ${Math.round(tBC).toLocaleString()}</td>
+                                <td align="right">$ ${Math.round(tIC).toLocaleString()}</td>
+                                <td align="right" style="background-color:#f1f5f9; font-weight:bold;">$ ${Math.round(tTC).toLocaleString()}</td>
+                                <td align="right">$ ${Math.round(tBV).toLocaleString()}</td>
+                                <td align="right">$ ${Math.round(tIV).toLocaleString()}</td>
+                                <td align="right" style="background-color:#f1f5f9; font-weight:bold;">$ ${Math.round(tTV).toLocaleString()}</td>
+                                <td align="right" style="background-color:#fee2e2;">$ ${Math.round(tID).toLocaleString()}</td>
+                                <td align="right" style="background-color:#f0fdf4; font-weight:bold;">$ ${Math.round(util).toLocaleString()}</td>
+                            </tr>`;
+                    });
+
+                    // Fila de SUBTOTAL por categoría
+                    excelHtml += `
+                        <tr style="height:35px; font-weight: bold; background-color: #f8fafc;">
+                            <td colspan="13" align="right" style="color: #64748b;">SUBTOTAL ${cat}:</td>
+                            <td align="right" style="background-color: #cbd5e1; border-top: 2px solid #64748b;">$ ${Math.round(subInv).toLocaleString()}</td>
+                            <td colspan="4"></td>
+                            <td align="right" style="background-color: #bcf6ce; border-top: 2px solid #16a34a; color: #065f46;">$ ${Math.round(subUtil).toLocaleString()}</td>
+                        </tr>
+                        <tr><td colspan="19" height="5"></td></tr>`;
+                });
+
+                // TOTALES GLOBALES (Misma lógica que el reporte base)
+                excelHtml += `
+                    <tr></tr>
+                    <tr style="font-weight: bold;">
+                        <td colspan="18" align="right" style="background-color: #f8fafc;">1. TOTAL INVERSIÓN COSTO (GLOBAL):</td>
+                        <td align="right" style="background-color: #f1f5f9;">$ ${Math.round(gTotalC).toLocaleString()}</td>
+                    </tr>
+                    <tr style="font-weight: bold; font-size: 15px;">
+                        <td colspan="18" align="right" style="background-color: #064e3b; color: white;">2. UTILIDAD BRUTA PROYECTADA (GLOBAL):</td>
+                        <td align="right" style="background-color: #065f46; color: #10b981;">$ ${Math.round(gTotalV - gTotalC).toLocaleString()}</td>
+                    </tr>
+                </table>`;
+
+                API.descargarExcelMHT(excelHtml, `Inventario_X_Categorias_${fecha.replace(/\//g, '-')}`, logoBase64);
+            } catch (err) { 
+                console.error(err);
+                alert("Error al generar reporte por categorías."); 
+            }
+        }
+
+        async function filtrarTabla() {
+            const busqueda = document.getElementById('filtro').value.toLowerCase();
+            const filtrados = dataActual.filter(p => 
+                p.nombre.toLowerCase().includes(busqueda) || p.codigo.toLowerCase().includes(busqueda)
+            );
+            renderTable(filtrados);
+        }
+
+        window.onload = () => {
+            cargarInventario();
+            document.getElementById('filtro').focus();
+        };
+
+        document.body.addEventListener('click', (e) => {
+            if(e.target.tagName !== 'INPUT' && e.target.tagName !== 'BUTTON' && e.target.tagName !== 'A') {
+                document.getElementById('filtro').focus();
+            }
+        });
+    </script>
+</body>
+</html>
+</html>
+    </script>
+</body>
+</html>
