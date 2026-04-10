@@ -1,8 +1,10 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const path = require('path');
 const fs = require('fs');
+const bcrypt = require('bcryptjs');
 const db = require('./database');
 
 const app = express();
@@ -27,8 +29,39 @@ const Config = db.Config;
 const FacturaCompra = db.FacturaCompra;
 const ProveedorCompra = db.ProveedorCompra;
 
+console.log('✅ API lista para MongoDB/Render');
+
+function isBcryptHash(value) {
+    return typeof value === 'string' && /^\$2[aby]\$\d{2}\$/.test(value);
+}
+
+async function hashPasswordIfNeeded(pass) {
+    if (!pass || isBcryptHash(pass)) return pass;
+    return bcrypt.hash(pass, 10);
+}
+
+function sanitizeUser(userDoc) {
+    if (!userDoc) return userDoc;
+    const user = typeof userDoc.toObject === 'function' ? userDoc.toObject() : { ...userDoc };
+    delete user.pass;
+    return user;
+}
+
+function getIdCandidates(rawId) {
+    const values = [rawId];
+    if (rawId !== undefined && rawId !== null && rawId !== '') {
+        const numeric = Number(rawId);
+        if (!Number.isNaN(numeric)) values.push(numeric);
+    }
+    return [...new Set(values)];
+}
+
+function buildFlexibleIdFilter(field, rawId) {
+    const values = getIdCandidates(rawId);
+    return values.length === 1 ? { [field]: values[0] } : { [field]: { $in: values } };
+}
+
 // --- INICIALIZACIÓN LOCAL ---
-console.log(`✅ Usando sistema de archivos JSON local`);
 
 // --- MÓDULO FACTURAS DE COMPRA (INDEPENDIENTE) ---
 app.get('/api/test-compras', (req, res) => res.json({ status: 'ok', message: 'Módulo de compras activo' }));
@@ -66,7 +99,7 @@ app.post('/api/facturas-compras', async (req, res) => {
     }
 });
 
-app.get('/api/provedores-compras', async (req, res) => {
+app.get(['/api/provedores-compras', '/api/proveedores-compras'], async (req, res) => {
     try {
         const proveedores = await ProveedorCompra.find();
         res.json(proveedores);
@@ -77,20 +110,21 @@ app.get('/api/provedores-compras', async (req, res) => {
 
 app.delete('/api/facturas-compras/:id', async (req, res) => {
     try {
-        await FacturaCompra.findOneAndDelete({ id: req.params.id });
+        await FacturaCompra.findOneAndDelete(buildFlexibleIdFilter('id', req.params.id));
         res.json({ success: true });
     } catch (error) {
         res.status(500).json({ error: 'Error al eliminar factura de compra' });
     }
 });
 
-app.post('/api/provedores-compras', async (req, res) => {
+app.post(['/api/provedores-compras', '/api/proveedores-compras'], async (req, res) => {
     const p = req.body;
     try {
         // Usamos _id para consistencia con los registros autogenerados
         if (!p._id) p._id = Date.now().toString();
         p.nombre = p.nombre.trim().toUpperCase();
-        await ProveedorCompra.findOneAndUpdate({ nombre: p.nombre }, p, { upsert: true });
+        const { _id, ...fields } = p;
+        await ProveedorCompra.findOneAndUpdate({ nombre: p.nombre }, { $set: fields }, { upsert: true, new: true });
         res.json({ success: true });
     } catch (error) {
         console.error("Error saving provider:", error);
@@ -98,10 +132,9 @@ app.post('/api/provedores-compras', async (req, res) => {
     }
 });
 
-app.delete('/api/provedores-compras/:id', async (req, res) => {
+app.delete(['/api/provedores-compras/:id', '/api/proveedores-compras/:id'], async (req, res) => {
     try {
-        // Buscamos por _id que es el campo usado en provedores_compras.json
-        await ProveedorCompra.findOneAndDelete({ _id: req.params.id });
+        await ProveedorCompra.findOneAndDelete(buildFlexibleIdFilter('_id', req.params.id));
         res.json({ success: true });
     } catch (error) {
         console.error("Error deleting provider:", error);
@@ -173,7 +206,7 @@ app.post('/api/config', async (req, res) => {
 app.get('/api/usuarios', async (req, res) => {
     try {
         const users = await Usuario.find();
-        res.json(users);
+        res.json(users.map(sanitizeUser));
     } catch (error) {
         res.status(500).json({ error: 'Error al obtener usuarios' });
     }
@@ -195,7 +228,13 @@ app.post('/api/usuarios', async (req, res) => {
 
         // Upsert por 'user' (nombre de usuario) - seguro y sin colisión de _id
         for (const u of users) {
+            const actual = await Usuario.findOne({ user: u.user });
             const { _id, ...fields } = u;
+            if (Object.prototype.hasOwnProperty.call(fields, 'pass')) {
+                fields.pass = fields.pass ? await hashPasswordIfNeeded(fields.pass) : actual?.pass;
+            } else if (actual?.pass) {
+                fields.pass = actual.pass;
+            }
             await Usuario.findOneAndUpdate({ user: u.user }, { $set: fields }, { upsert: true, new: true });
         }
 
@@ -222,10 +261,11 @@ app.post('/api/register', async (req, res) => {
         if (existe) {
             return res.status(400).json({ error: 'El nombre de usuario ya existe' });
         }
+        const passHash = await hashPasswordIfNeeded(pass);
         const nuevo = new Usuario({ 
             nombre, 
             user, 
-            pass, 
+            pass: passHash, 
             rol: 'cliente',
             canEditPrice: false,
             permExcel: false, 
@@ -235,7 +275,7 @@ app.post('/api/register', async (req, res) => {
             permDian: false 
         });
         await nuevo.save();
-        res.json({ success: true, user: nuevo });
+        res.json({ success: true, user: sanitizeUser(nuevo) });
     } catch (error) {
         console.error('Register Error:', error);
         res.status(500).json({ error: 'Error al registrar usuario' });
@@ -245,12 +285,27 @@ app.post('/api/register', async (req, res) => {
 app.post('/api/login', async (req, res) => {
     const { user, pass } = req.body;
     try {
-        const cuenta = await Usuario.findOne({ user, pass });
-        if (cuenta) {
-            res.json({ success: true, user: cuenta });
-        } else {
-            res.status(401).json({ success: false, message: 'Usuario o clave incorrectos' });
+        const cuenta = await Usuario.findOne({ user });
+        if (!cuenta) {
+            return res.status(401).json({ success: false, message: 'Usuario o clave incorrectos' });
         }
+
+        let passValido = false;
+        if (isBcryptHash(cuenta.pass)) {
+            passValido = await bcrypt.compare(pass, cuenta.pass);
+        } else {
+            passValido = cuenta.pass === pass;
+            if (passValido) {
+                cuenta.pass = await hashPasswordIfNeeded(pass);
+                await cuenta.save();
+            }
+        }
+
+        if (!passValido) {
+            return res.status(401).json({ success: false, message: 'Usuario o clave incorrectos' });
+        }
+
+        res.json({ success: true, user: sanitizeUser(cuenta) });
     } catch (error) {
         console.error('Login Error:', error);
         res.status(500).json({ error: 'Error en el servidor' });
@@ -260,10 +315,10 @@ app.delete('/api/productos/:id', async (req, res) => {
     try {
         const idParam = req.params.id;
         // Intentar por _id primero (lo que envía el frontend: timestamp string de MongoDB)
-        let result = await Producto.findByIdAndDelete(idParam);
+        let result = await Producto.findOneAndDelete(buildFlexibleIdFilter('_id', idParam));
         if (!result) {
             // Fallback: buscar por codigo por si acaso
-            result = await Producto.findOneAndDelete({ codigo: idParam });
+            result = await Producto.findOneAndDelete(buildFlexibleIdFilter('codigo', idParam));
         }
         res.json({ success: true });
     } catch (error) {
@@ -355,8 +410,8 @@ app.post('/api/pedidos', async (req, res) => {
 
 app.delete('/api/pedidos/:id', async (req, res) => {
     try {
-        const id = parseInt(req.params.id);
-        const pedido = await Pedido.findOne({ id });
+        const id = req.params.id;
+        const pedido = await Pedido.findOne(buildFlexibleIdFilter('id', id));
         if (!pedido) {
             return res.status(404).json({ error: 'Pedido no encontrado' });
         }
@@ -375,7 +430,7 @@ app.delete('/api/pedidos/:id', async (req, res) => {
             }
         }
 
-        await Pedido.findOneAndDelete({ id });
+        await Pedido.findOneAndDelete(buildFlexibleIdFilter('id', id));
         res.json({ success: true });
     } catch (error) {
         console.error('Error deleting order:', error);
@@ -425,7 +480,7 @@ app.post('/api/reportes', async (req, res) => {
 
 app.delete('/api/reportes/:id', async (req, res) => {
     try {
-        await Reporte.findOneAndDelete({ idReporte: parseInt(req.params.id) });
+        await Reporte.findOneAndDelete(buildFlexibleIdFilter('idReporte', req.params.id));
         res.json({ success: true });
     } catch (error) {
         res.status(500).json({ error: 'Error al eliminar reporte' });
@@ -464,7 +519,7 @@ app.post('/api/ingresos', async (req, res) => {
 
 app.delete('/api/ingresos/:id', async (req, res) => {
     try {
-        await Ingreso.findOneAndDelete({ id: parseInt(req.params.id) });
+        await Ingreso.findOneAndDelete(buildFlexibleIdFilter('id', req.params.id));
         res.json({ success: true });
     } catch (error) {
         res.status(500).json({ error: 'Error al eliminar ingreso' });
@@ -503,7 +558,7 @@ app.post('/api/egresos', async (req, res) => {
 
 app.delete('/api/egresos/:id', async (req, res) => {
     try {
-        await Egreso.findOneAndDelete({ id: parseInt(req.params.id) });
+        await Egreso.findOneAndDelete(buildFlexibleIdFilter('id', req.params.id));
         res.json({ success: true });
     } catch (error) {
         res.status(500).json({ error: 'Error al eliminar egreso' });
@@ -685,4 +740,3 @@ const server = app.listen(PORT, '0.0.0.0', () => {
 // Configuraciones recomendadas por Render para evitar desconexiones intermitentes
 server.keepAliveTimeout = 120000;
 server.headersTimeout = 120500;
-

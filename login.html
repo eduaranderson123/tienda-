@@ -8,6 +8,7 @@
         localStorage.removeItem('adminLogueado');
         localStorage.removeItem('nombreCliente');
     </script>
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SISCONTED - Acceso Profesional</title>
     <script src="api.js"></script>
@@ -279,18 +280,41 @@
         }
         @keyframes slideIn { from { transform: translateX(120%); } to { transform: translateX(0); } }
     </style>
+    <link rel="stylesheet" href="app-theme.css">
 </head>
-<body>
+<body class="auth-page">
 
     <canvas id="canvas-stars"></canvas>
 
     <div class="container">
+        <div class="auth-shell">
+        <section class="auth-copy">
+            <span class="eyebrow">Sistema de ventas</span>
         <div class="system-title" id="title-anim">
             <!-- Letras generadas por JS -->
         </div>
+            <h1>Control comercial con una interfaz más clara y profesional.</h1>
+            <p>Gestiona inventario, pedidos, ingresos y reportes desde una experiencia visual más limpia, pensada para uso diario y despliegue estable con MongoDB y Render.</p>
+            <div class="auth-highlights">
+                <div class="auth-pill">
+                    <strong>Acceso centralizado</strong>
+                    Inicio de sesión y registro en un panel claro y elegante.
+                </div>
+                <div class="auth-pill">
+                    <strong>Operación diaria</strong>
+                    Flujo visual más consistente para tareas administrativas.
+                </div>
+                <div class="auth-pill">
+                    <strong>Listo para producción</strong>
+                    Mantiene tu backend actual en Node, MongoDB y Render.
+                </div>
+            </div>
+        </section>
 
         <!-- Vista Login -->
         <div id="vista-login" class="card">
+            <h2 class="card-title">Ingresar</h2>
+            <p class="card-subtitle">Accede con tu cuenta para entrar al panel de control.</p>
             <div class="input-group">
                 <label>Usuario</label>
                 <input type="text" id="user-login" placeholder="Usuario" spellcheck="false" autofocus>
@@ -305,6 +329,8 @@
 
         <!-- Vista Registro -->
         <div id="vista-registro" class="card hidden">
+            <h2 class="card-title">Crear cuenta</h2>
+            <p class="card-subtitle">Registra un nuevo usuario para comenzar a usar el sistema.</p>
             <div class="input-group">
                 <label>Nombre Completo</label>
                 <input type="text" id="reg-nombre" placeholder="Nombre y Apellido">
@@ -319,6 +345,7 @@
             </div>
             <button onclick="registrarYEntrar()">REGISTRARSE</button>
             <a class="link" onclick="mostrarLogin()">Volver al Login</a>
+        </div>
         </div>
     </div>
 

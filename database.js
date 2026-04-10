@@ -1,15 +1,24 @@
 const mongoose = require('mongoose');
 require('dotenv').config();
 
-const MONGO_URI = process.env.MONGO_URI || "mongodb://localhost:27017/sisconted";
+const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/sisconted';
+
+mongoose.connection.on('connected', () => {
+    console.log('✅ Conectado a MongoDB');
+});
+
+mongoose.connection.on('error', (err) => {
+    console.error('❌ Error de conexión a MongoDB:', err.message);
+});
+
+mongoose.connection.on('disconnected', () => {
+    console.warn('⚠️ Conexión a MongoDB cerrada');
+});
 
 mongoose.connect(MONGO_URI, {
-    serverSelectionTimeoutMS: 5000, // Tiempo máximo para seleccionar el servidor (5s)
-    socketTimeoutMS: 45000,         // Tiempo máximo de inactividad del socket (45s)
-})
-  .then(() => console.log('✅ Conectado a MongoDB Atlas'))
-  .catch(err => console.error('❌ Error conectando a MongoDB Atlas:', err));
-
+    serverSelectionTimeoutMS: 10000,
+    socketTimeoutMS: 45000,
+});
 
 // Esquemas flexibles (strict: false) para aceptar datos dinámicamente.
 // Definir _id como String garantiza compatibilidad con IDs pasados (timestamps largos).
@@ -26,7 +35,6 @@ const ConfigSchema = new mongoose.Schema({ _id: { type: String, default: 'main' 
 const FacturaCompraSchema = new mongoose.Schema(baseSchema, schemaOptions);
 const ProveedorCompraSchema = new mongoose.Schema(baseSchema, schemaOptions);
 
-// Modelos exportados equivalentes a las clases anteriores
 const Producto = mongoose.model('productos', ProductoSchema);
 const Usuario = mongoose.model('usuarios', UsuarioSchema);
 const Pedido = mongoose.model('pedidos', PedidoSchema);
@@ -37,46 +45,52 @@ const Config = mongoose.model('configuracion', ConfigSchema);
 const FacturaCompra = mongoose.model('facturas_compras', FacturaCompraSchema);
 const ProveedorCompra = mongoose.model('provedores_compras', ProveedorCompraSchema);
 
-// AUTO-CREACIÓN DE ADMINISTRADOR Y CONFIGURACIÓN INICIAL (Modo Plantilla SaaS)
 async function seedDatabase() {
     try {
         const adminCount = await Usuario.countDocuments();
         if (adminCount === 0) {
-            await Usuario.create({ 
-                _id: "admin-default-id", 
-                nombre: "Administrador", 
-                user: "admin", 
-                pass: "1234", 
-                rol: "admin" 
+            await Usuario.create({
+                _id: 'admin-default-id',
+                nombre: 'Administrador',
+                user: 'admin',
+                pass: '1234',
+                rol: 'admin'
             });
-            console.log(`[Seed] ✅ Creado Usuario Administrador base.`);
+            console.log('[Seed] ✅ Creado usuario administrador base.');
         }
 
         const configCount = await Config.countDocuments();
         if (configCount === 0) {
             await Config.create({
-                _id: "main",
+                _id: 'main',
                 id: 'main',
-                categorias: ["General"],
-                unidades: ["Und", "Kg", "Lt"],
-                empresa: { 
-                    nombre: "Mi Empresa Local", 
-                    nit: "000-000", 
-                    telefono: "000000", 
-                    direccion: "Calle Falsa 123", 
-                    tema: "predefinido" 
+                categorias: ['General'],
+                unidades: ['Und', 'Kg', 'Lt'],
+                empresa: {
+                    nombre: 'Mi Empresa Local',
+                    nit: '000-000',
+                    telefono: '000000',
+                    direccion: 'Calle Falsa 123',
+                    tema: 'predefinido'
                 }
             });
-            console.log(`[Seed] ✅ Creada Configuración base.`);
+            console.log('[Seed] ✅ Creada configuración base.');
         }
-    } catch(e) {
-        console.error(`Error inicializando base de datos local:`, e);
+    } catch (e) {
+        console.error('Error inicializando la base de datos:', e);
     }
 }
 
-// Ejecutar seed pocos segundos después de arrancar para asegurar que mongoose conectó
-setTimeout(seedDatabase, 2000);
+mongoose.connection.once('open', seedDatabase);
 
 module.exports = {
-    Producto, Usuario, Pedido, Reporte, Ingreso, Egreso, Config, FacturaCompra, ProveedorCompra
+    Producto,
+    Usuario,
+    Pedido,
+    Reporte,
+    Ingreso,
+    Egreso,
+    Config,
+    FacturaCompra,
+    ProveedorCompra
 };
